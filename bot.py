@@ -12,8 +12,6 @@ TOKEN = os.getenv("Token", "8077632038:AAGFLxIHwkDkhhxL9C7sgLnC-B1h-D_QZNk")
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
 
-URL = os.getenv("URL")
-PORT = int(os.environ.get("PORT", 10000))
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
