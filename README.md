@@ -1,50 +1,87 @@
-# Meneja wa Vikundi vya Telegram 🤖
+# Meneja wa Vikundi vya Telegram kwa Webhook 🚀
 
-Bot hii ya Telegram imeundwa kusaidia kusimamia vikundi kwa urahisi na ufanisi. Inakaribisha wanachama wapya kwa ujumbe wa furaha, inafuta ujumbe wa kuondoka, na inahakikisha mazingira safi ya mawasiliano.
+Bot hii ya Telegram imeundwa kusimamia vikundi kwa kutumia teknolojia ya Webhook. Inatumia python-telegram-bot pamoja na Starlette na Uvicorn kwa utendaji wa haraka na wa kisasa.
 
-## ⚙️ Vipengele
+## ⚙️ Vipengele Muhimu
 
-- Karibu ya kipekee kwa wanachama wapya 🎉
-- Ujumbe wa kuondoka unafutwa moja kwa moja 🧹
-- Ujumbe wa kuondoka kwa mmiliki wa bot hupewa heshima ya pekee 👑
-- Ujumbe wa kukaribisha unafutwa baada ya sekunde 60 ⏱️
-- Hitilafu hutumwa kwenye kundi maalum la kuripoti makosa 📩
+- ✅ Karibu ya kipekee kwa wanachama wapya
+- ✅ Ujumbe wa kuondoka unafutwa moja kwa moja
+- ✅ Mmiliki wa bot hupokea ujumbe wa heshima anapoondoka
+- ✅ Ujumbe wa kukaribisha unafutwa baada ya sekunde 60
+- ✅ Hitilafu hutumwa kwenye kundi maalum la kuripoti makosa
+- ✅ Bot huwasiliana na Telegram kupitia Webhook (hakuna polling)
 
-### 🚀 Jinsi ya Kuendesha
+## 🧠 Teknolojia Zinazotumika
 
-Bot hutumia run_polling() kwa ajili ya kupokea matukio moja kwa moja kutoka Telegram.
+| Kipengele              | Maelezo                          |
+|------------------------|----------------------------------|
+| Lugha ya programu      | Python 3.11                      |
+| Telegram API           | python-telegram-bot v20+       |
+| Web framework          | Starlette                      |
+| Web server             | Uvicorn                        |
+| Deployment             | Docker / Render / Railway / Heroku |
 
-`bash
-python bot.py
-`
+## 📦 Jinsi ya Kuendesha Bot
 
-Hakikisha umeweka environment variables zifuatazo:
+#### 1. Weka environment variables kwenye .env au kwenye dashboard ya hosting:
 
 `env
 Token=YOURBOTTOKEN
 OWNERID=YOURTELEGRAMUSERID
 ERRORGROUPID=GROUPIDFORERRORREPORTS
-PORT=10000
 URL=https://your-app-url.com
+PORT=10000
 `
 
-#### 📌 Jinsi ya Kuongeza Bot kwenye Kundi
+#### 2. Sakinisha dependencies:
 
-Ongeza bot kwenye kundi lako na mpe ruhusa ya kusoma na kuandika ujumbe. Kisha, bot ataanza:
+`bash
+pip install -r requirements.txt
+`
 
-- Kukaribisha wanachama wapya
-- Kufuta ujumbe wa kuondoka
-- Kuripoti hitilafu kwenye kundi maalum
+#### 3. Endesha bot kwa Webhook:
 
-👉 Bonyeza hapa kumwongeza Meneja
+`bash
+python bot.py
+`
 
-# 🛡️ Usalama
+Bot itajiunga na Telegram kupitia URL/telegram na kuanza kupokea updates.
+
+## 🐳 Dockerfile (mfano)
+
+`Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 10000
+
+CMD ["python", "bot.py"]
+`
+
+# 🔐 Usalama
 
 - Token na taarifa nyeti zinahifadhiwa kwenye environment variables
 - Hakuna credentials zinazowekwa hadharani
-- .env na .gitignore zinapaswa kutumika ipasavyo
+- .env inapaswa kuorodheshwa kwenye .gitignore
+- Hitilafu hutumwa kwa admin kupitia ERRORGROUPID
 
-# 📄 Leseni
+## 📌 Jinsi ya Kuongeza Bot kwenye Kundi
+
+Ongeza bot kwenye kundi lako na mpe ruhusa ya kusoma na kuandika ujumbe. Bot ataanza:
+
+- Kukaribisha wanachama wapya kwa furaha 🎉  
+- Kufuta ujumbe wa kuondoka kwa usafi wa mazungumzo 🧹  
+- Kuripoti hitilafu kwa admin kwa uwazi 📩  
+
+#### 👉 Bonyeza hapa kumwongeza Meneja
+
+##📄 Leseni
 
 Mradi huu unafuata leseni ya MIT. Imetafsiriwa pia kwa Kiswahili ili iweze kueleweka na jamii pana.
 
