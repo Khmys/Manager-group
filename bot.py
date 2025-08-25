@@ -6,6 +6,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 
 
+#WebHook
+import uvicorn
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
+
+
+
+
 
 # Chukua token kutoka environment variable
 TOKEN = os.getenv("Token")
@@ -74,7 +84,7 @@ async def delete_left_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             # Give the owner a special goodbye
             if left_mem.id == OWNER_ID:
-                await update.effective_message.reply_html(f"Kwaheri 🤝  {left_mem.mention_html()} 👑")
+                await update.effective_message.reply_html(f"Kwaheri  {left_mem.mention_html()} 👑")
                 return
                 
         
@@ -87,18 +97,50 @@ async def delete_left_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 
-def main():
-    if not TOKEN:
-        print("TOKEN haijapatikana! Tafadhali weka BOT_TOKEN kwenye environment variables.")
-        return
 
+
+async def telegram(request: Request) -> Response:
+    """Shughulikia webhook requests kutoka Telegram"""
+    data = await request.json()
+    await app.update_queue.put(Update.de_json(data=data, bot=app.bot))
+    return Response()
+
+
+async def main():
+    global app  # ili itumike ndani ya `telegram()`
     app = Application.builder().token(TOKEN).build()
+    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, delete_left_message))
     
-    app.run_polling()
+    # Tengeneza Starlette app
+    starlette_app = Starlette(
+        routes=[
+            Route("/telegram", telegram, methods=["POST"]),
+        ]
+    )
+
+    # Tengeneza uvicorn server
+    webserver = uvicorn.Server(
+        config=uvicorn.Config(
+            app=starlette_app,
+            host="0.0.0.0",
+            port=PORT,
+            log_level="info"
+        )
+    )
+
+    # Weka webhook
+    await app.bot.set_webhook(url=f"{URL}/telegram")
+
+    # Anzisha bot na webserver
+    async with app:
+        await app.start()
+        await webserver.serve()
+        await app.stop()
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
