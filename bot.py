@@ -18,11 +18,11 @@ from starlette.routing import Route
 
 
 # Chukua token kutoka environment variable
-TOKEN = os.getenv("Token")
+TOKEN = os.getenv("Token", "8077632038:AAGFLxIHwkDkhhxL9C7sgLnC-B1h-D_QZNk")
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
 
-URL = os.getenv("URL")
+URL = os.getenv("URL", "https://hollow-gabriella-jihudumie1-02e501ba.koyeb.app")
 PORT = int(os.environ.get("PORT", 10000))
 
 logging.basicConfig(
@@ -84,7 +84,7 @@ async def delete_left_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             # Give the owner a special goodbye
             if left_mem.id == OWNER_ID:
-                await update.effective_message.reply_html(f"Kwaheri  {left_mem.mention_html()} 👑")
+                await update.effective_message.reply_html(f"Kwaheri 🙌 {left_mem.mention_html()} 👑")
                 return
                 
         
