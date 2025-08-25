@@ -72,7 +72,7 @@ async def delete_left_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             # Give the owner a special goodbye
             if left_mem.id == OWNER_ID:
-                await update.effective_message.reply_html(f"Kwaheri 🤝  {left_mem.mention_html()} 👑")
+                await update.effective_message.reply_html(f"Kwaheri 🙌  {left_mem.mention_html()} 👑")
                 return
                 
         
