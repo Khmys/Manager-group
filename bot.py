@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 
 # Chukua token kutoka environment variable
-TOKEN = os.getenv("Token", "8077632038:AAGFLxIHwkDkhhxL9C7sgLnC-B1h-D_QZNk")
+TOKEN = os.getenv("Token", "8063489420:AAGq0Ulkx1fY2EPA_FIKTg42e3hNBMyciqM")
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
 
