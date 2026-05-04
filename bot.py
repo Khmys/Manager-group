@@ -13,7 +13,7 @@ import uvicorn
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
 BOT_TOKEN = "8063489420:AAGq0Ulkx1fY2EPA_FIKTg42e3hNBMyciqM"
-URL = os.getenv("URL", "")
+URL = os.getenv("URL", "https://web-production-abe9c.up.railway.app")
 PORT = int(os.getenv("PORT", 10000))
 
 logging.basicConfig(
