@@ -3,23 +3,29 @@ import asyncio
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
+import uvicorn
+#from Jlb import get_command
 
-
-
-
-# Chukua token kutoka environment variable
-TOKEN = os.getenv("Token", "8063489420:AAGq0Ulkx1fY2EPA_FIKTg42e3hNBMyciqM")
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
-
+BOT_TOKEN = "8063489420:AAGq0Ulkx1fY2EPA_FIKTg42e3hNBMyciqM"
+URL = os.getenv("URL", "")
+PORT = int(os.getenv("PORT", 10000))
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
+
+app = None
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Habari! Mimi ni bot wako 😊")
-
 
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -30,73 +36,81 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in new_members:
         if member.id == bot.id:
             continue
-
         try:
             sent_message = await message.reply_text(
                 f"Karibu sana {member.mention_html()} kwenye group letu! 🎉",
                 parse_mode="HTML"
             )
-
-            # Anzisha task ya kufuta ujumbe baada ya muda
             asyncio.create_task(kufuta_ujumbe(sent_message, context))
-
         except Exception as e:
-            error_message = f"Hitilafu wakati wa kutuma ujumbe wa kukaribisha: {e}"
-            await bot.send_message(chat_id=ERROR_GROUP_ID, text=error_message)
+            await bot.send_message(chat_id=ERROR_GROUP_ID, text=f"Hitilafu: {e}")
+
 
 async def kufuta_ujumbe(sent_message, context: ContextTypes.DEFAULT_TYPE, delay: int = 60):
-    """Futa ujumbe baada ya sekunde fulani (chaguo-msingi: 60)."""
     await asyncio.sleep(delay)
     try:
         await sent_message.delete()
     except Exception as e:
-        error_message = f"Hitilafu wakati wa kufuta ujumbe: {e}"
-        await context.bot.send_message(chat_id=ERROR_GROUP_ID, text=error_message)
-
-
-
-
+        await context.bot.send_message(chat_id=ERROR_GROUP_ID, text=f"Hitilafu: {e}")
 
 
 async def delete_left_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Hakikisha ni ujumbe wa mtu kuondoka
         if update.message.left_chat_member:
             left_mem = update.effective_message.left_chat_member
             bot = context.bot
-            
-            if left_mem:
-                # Ignore bot being kicked
-                if left_mem.id == bot.id:
-                    return
 
-            # Give the owner a special goodbye
-            if left_mem.id == OWNER_ID:
-                await update.effective_message.reply_html(f"Kwaheri 🙌  {left_mem.mention_html()} 👑")
+            if left_mem.id == bot.id:
                 return
-                
-        
+
+            if left_mem.id == OWNER_ID:
+                await update.effective_message.reply_html(
+                    f"Kwaheri 🙌 {left_mem.mention_html()} 👑"
+                )
+                return
+
             await update.message.delete()
     except Exception as e:
-        error_message = f"Hitilafu wakati wa kufuta ujumbe: {e}"
-        await context.bot.send_message(chat_id=ERROR_GROUP_ID, text=error_message)
+        await context.bot.send_message(chat_id=ERROR_GROUP_ID, text=f"Hitilafu: {e}")
 
 
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    await app.update_queue.put(Update.de_json(data, app.bot))
+    return Response()
 
 
+async def main():
+    global app
 
-def main():
-    if not TOKEN:
-        print("TOKEN haijapatikana! Tafadhali weka BOT_TOKEN kwenye environment variables.")
-        return
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    app = Application.builder().token(TOKEN).build()
+    # Sajili handlers
     app.add_handler(CommandHandler("start", start))
+    #app.add_handler(CommandHandler("get", get_command))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-    
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, delete_left_message))
-    
-    app.run_polling()
+
+    starlette_app = Starlette(
+        routes=[Route("/telegram", telegram_webhook, methods=["POST"])]
+    )
+
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app=starlette_app,
+            host="0.0.0.0",
+            port=PORT,
+            log_level="info"
+        )
+    )
+
+    await app.bot.set_webhook(f"{URL}/telegram")
+
+    async with app:
+        await app.start()
+        await server.serve()
+        await app.stop()
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
