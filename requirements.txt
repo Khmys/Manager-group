@@ -1,3 +1,6 @@
-python-telegram-bot==22.3
-starlette~=0.20.0
-uvicorn~=0.23.2
+python-telegram-bot
+starlette
+uvicorn
+requests
+beautifulsoup4
+playwright
