@@ -35,7 +35,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_agent="Mozilla/5.0"
             )
 
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.goto(url, wait_until="networkidle", timeout=60000)
 
             # Title
             h1 = await page.query_selector("h1")
