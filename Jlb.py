@@ -290,4 +290,12 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await original_message.reply_text(
             f"📄 <b>{title}</b>\n\n"
-            f
+            f"🔗 <a href='{telegraph_url}'>Soma hapa (Instant View)</a>",
+            parse_mode="HTML",
+            disable_web_page_preview=False,
+        )
+
+    except Exception as e:
+        await original_message.reply_text(
+            f"❌ Hitilafu: {e}"
+        )
