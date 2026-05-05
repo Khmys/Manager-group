@@ -11,26 +11,11 @@ NOISE_TEXTS = {
     "no comments yet. be the first!",
     "write a comment",
     "post comment",
-    "home",
-    "products",
-    "comparisons",
-    "brands",
-    "news",
-    "categories",
-    "related posts",
-    "recent posts",
-    "popular posts",
-    "share",
-    "advertisement",
-    "menu",
-    "search",
-    "next post",
-    "previous post",
-    "recommended",
 }
 
 telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06d08812181c1945dc")
 
+# Tags zinazokubalika Telegraph
 ALLOWED_TAGS = {
     "b", "strong", "i", "em", "u", "s", "a",
     "p", "br", "h3", "h4", "ul", "ol", "li",
@@ -42,54 +27,9 @@ def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
 
 
-def is_noise(text: str) -> bool:
-    text = text.strip().lower()
-    return (
-        not text
-        or text in NOISE_TEXTS
-        or len(text) < 20
-    )
-
-
-def safe_attr(tag, attr):
-    """Rudisha attribute safely bila error."""
-    if not tag:
-        return ""
-    return tag.get(attr, "")
-
-
 def clean_html(html: str, base_url: str) -> str:
+    """Safisha HTML na kubakiza formatting + picha."""
     soup = BeautifulSoup(html, "html.parser")
-
-    # Ondoa sections zisizotakiwa
-    for bad in soup.find_all([
-        "script", "style", "nav", "footer",
-        "aside", "form", "button", "input",
-        "header", "menu", "noscript"
-    ]):
-        bad.decompose()
-
-    blocked_keywords = [
-        "menu", "nav", "header", "footer",
-        "sidebar", "widget", "comment",
-        "share", "related", "promo",
-        "advert", "breadcrumb",
-        "newsletter", "popup",
-        "social", "subscription"
-    ]
-
-    # Ondoa kwa class/id safely
-    for tag in soup.find_all(True):
-        try:
-            classes = " ".join(tag.get("class", [])).lower() if tag else ""
-            ids = str(tag.get("id", "")).lower() if tag else ""
-
-            if any(word in classes for word in blocked_keywords) or any(
-                word in ids for word in blocked_keywords
-            ):
-                tag.decompose()
-        except Exception:
-            continue
 
     def process_node(tag):
         from bs4 import NavigableString, Tag
@@ -102,17 +42,21 @@ def clean_html(html: str, base_url: str) -> str:
 
         name = tag.name.lower() if tag.name else ""
 
+        # Ondoa tags zisizohitajika
+        if name in {
+            "script", "style", "nav", "footer",
+            "aside", "form", "button", "input"
+        }:
+            return ""
+
         # Picha
         if name == "img":
-            src = safe_attr(tag, "src").strip()
-            alt = safe_attr(tag, "alt").lower()
+            src = tag.get("src", "").strip()
 
-            if (
-                not src
-                or any(x in alt for x in ["logo", "icon", "avatar", "profile"])
-            ):
+            if not src:
                 return ""
 
+            # Rekebisha relative URLs
             src = urljoin(base_url, src)
 
             if src.startswith("http"):
@@ -120,9 +64,9 @@ def clean_html(html: str, base_url: str) -> str:
 
             return ""
 
-        # Link
+        # Links
         if name == "a":
-            href = safe_attr(tag, "href").strip()
+            href = tag.get("href", "").strip()
             inner = "".join(process_node(child) for child in tag.children)
 
             if href:
@@ -133,12 +77,13 @@ def clean_html(html: str, base_url: str) -> str:
 
             return inner
 
-        # Children
+        # Process watoto
         inner = "".join(process_node(child) for child in tag.children)
 
         if not inner.strip():
             return ""
 
+        # Mapping
         tag_map = {
             "strong": "b",
             "em": "i",
@@ -157,30 +102,7 @@ def clean_html(html: str, base_url: str) -> str:
 
     parts = []
 
-    main = (
-        soup.find("article")
-        or soup.find("main")
-        or soup.find(
-            class_=lambda c: c and any(
-                x in str(c).lower()
-                for x in [
-                    "post-content",
-                    "article-content",
-                    "entry-content",
-                    "post-body",
-                    "article-body",
-                    "content",
-                    "story"
-                ]
-            )
-        )
-        or soup.body
-    )
-
-    if not main:
-        return ""
-
-    for tag in main.find_all(
+    for tag in soup.find_all(
         [
             "p", "h2", "h3", "h4",
             "ul", "ol", "blockquote",
@@ -188,13 +110,10 @@ def clean_html(html: str, base_url: str) -> str:
         ],
         recursive=True
     ):
-        try:
-            cleaned = process_node(tag)
+        cleaned = process_node(tag)
 
-            if not cleaned.strip():
-                continue
-
-            # Ruhusu picha
+        if cleaned.strip():
+            # Kama ni picha, iingize moja kwa moja
             if cleaned.startswith("<img"):
                 parts.append(cleaned)
                 continue
@@ -202,13 +121,14 @@ def clean_html(html: str, base_url: str) -> str:
             plain = BeautifulSoup(
                 cleaned,
                 "html.parser"
-            ).get_text(separator=" ", strip=True)
+            ).get_text().strip().lower()
 
-            if not is_noise(plain):
+            if (
+                plain
+                and plain not in NOISE_TEXTS
+                and len(plain) > 10
+            ):
                 parts.append(cleaned)
-
-        except Exception:
-            continue
 
     return "".join(parts)
 
@@ -240,19 +160,18 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await page.goto(
                 url,
-                wait_until="domcontentloaded",
+                wait_until="networkidle",
                 timeout=60000
             )
-
-            await page.wait_for_timeout(3000)
 
             # Title
             h1 = await page.query_selector("h1")
             title = (
                 (await h1.inner_text()).strip()
-                if h1 else await page.title()
+                if h1 else "Habari"
             )
 
+            # Body content
             body = await page.query_selector("body")
 
             if not body:
@@ -266,6 +185,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await browser.close()
 
+        # Safisha content
         html_content = clean_html(
             body_html,
             base_url=url
@@ -273,14 +193,15 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not html_content.strip():
             await original_message.reply_text(
-                "⚠️ Imeshindwa kupata content. Website inaweza kuwa inalinda data au structure yake ni tofauti."
+                "⚠️ Imeshindwa kupata content."
             )
             return
 
-        # Telegraph limit
+        # Telegraph size limit
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
+        # Create Telegraph page
         page_data = await telegraph.create_page(
             title=title,
             html_content=html_content,
