@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegraph.aio import Telegraph
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 NOISE_TEXTS = {
     "table of contents",
@@ -18,7 +19,7 @@ telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06
 ALLOWED_TAGS = {
     "b", "strong", "i", "em", "u", "s", "a",
     "p", "br", "h3", "h4", "ul", "ol", "li",
-    "blockquote", "pre", "code"
+    "blockquote", "pre", "code", "img"
 }
 
 
@@ -26,8 +27,8 @@ def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
 
 
-def clean_html(html: str) -> str:
-    """Safisha HTML na kubakiza bold, italic, headings, lists n.k."""
+def clean_html(html: str, base_url: str) -> str:
+    """Safisha HTML na kubakiza formatting + picha."""
     soup = BeautifulSoup(html, "html.parser")
 
     def process_node(tag):
@@ -41,20 +42,37 @@ def clean_html(html: str) -> str:
 
         name = tag.name.lower() if tag.name else ""
 
-        # Ondoa tags zisizotakiwa
+        # Ondoa tags zisizohitajika
         if name in {
             "script", "style", "nav", "footer",
-            "aside", "form", "button", "input",
-            "img", "figure", "figcaption"
+            "aside", "form", "button", "input"
         }:
             return ""
 
-        # Link
+        # Picha
+        if name == "img":
+            src = tag.get("src", "").strip()
+
+            if not src:
+                return ""
+
+            # Rekebisha relative URLs
+            src = urljoin(base_url, src)
+
+            if src.startswith("http"):
+                return f'<img src="{src}"/>'
+
+            return ""
+
+        # Links
         if name == "a":
-            href = tag.get("href", "")
+            href = tag.get("href", "").strip()
             inner = "".join(process_node(child) for child in tag.children)
 
-            if href and href.startswith("http") and inner.strip():
+            if href:
+                href = urljoin(base_url, href)
+
+            if href.startswith("http") and inner.strip():
                 return f'<a href="{href}">{inner}</a>'
 
             return inner
@@ -85,12 +103,21 @@ def clean_html(html: str) -> str:
     parts = []
 
     for tag in soup.find_all(
-        ["p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre"],
+        [
+            "p", "h2", "h3", "h4",
+            "ul", "ol", "blockquote",
+            "pre", "img"
+        ],
         recursive=True
     ):
         cleaned = process_node(tag)
 
         if cleaned.strip():
+            # Kama ni picha, iingize moja kwa moja
+            if cleaned.startswith("<img"):
+                parts.append(cleaned)
+                continue
+
             plain = BeautifulSoup(
                 cleaned,
                 "html.parser"
@@ -144,7 +171,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if h1 else "Habari"
             )
 
-            # Pata content kuu ya body
+            # Body content
             body = await page.query_selector("body")
 
             if not body:
@@ -159,7 +186,10 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await browser.close()
 
         # Safisha content
-        html_content = clean_html(body_html)
+        html_content = clean_html(
+            body_html,
+            base_url=url
+        )
 
         if not html_content.strip():
             await original_message.reply_text(
@@ -167,11 +197,11 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Telegraph limit
+        # Telegraph size limit
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
-        # Tengeneza Instant View page
+        # Create Telegraph page
         page_data = await telegraph.create_page(
             title=title,
             html_content=html_content,
