@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
 import uvicorn
-#from Jlb import get_command
+from Jlb import get_command
 
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
@@ -87,7 +87,7 @@ async def main():
 
     # Sajili handlers
     app.add_handler(CommandHandler("start", start))
-    #app.add_handler(CommandHandler("get", get_command))
+    app.add_handler(CommandHandler("get", get_command))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, delete_left_message))
 
