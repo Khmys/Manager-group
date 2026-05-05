@@ -51,10 +51,17 @@ def is_noise(text: str) -> bool:
     )
 
 
+def safe_attr(tag, attr):
+    """Rudisha attribute safely bila error."""
+    if not tag:
+        return ""
+    return tag.get(attr, "")
+
+
 def clean_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
-    # Ondoa sections zisizotakiwa mapema
+    # Ondoa sections zisizotakiwa
     for bad in soup.find_all([
         "script", "style", "nav", "footer",
         "aside", "form", "button", "input",
@@ -62,7 +69,6 @@ def clean_html(html: str, base_url: str) -> str:
     ]):
         bad.decompose()
 
-    # Ondoa blocks kwa class/id
     blocked_keywords = [
         "menu", "nav", "header", "footer",
         "sidebar", "widget", "comment",
@@ -72,14 +78,18 @@ def clean_html(html: str, base_url: str) -> str:
         "social", "subscription"
     ]
 
+    # Ondoa kwa class/id safely
     for tag in soup.find_all(True):
-        classes = " ".join(tag.get("class", [])).lower()
-        ids = str(tag.get("id", "")).lower()
+        try:
+            classes = " ".join(tag.get("class", [])).lower() if tag else ""
+            ids = str(tag.get("id", "")).lower() if tag else ""
 
-        if any(word in classes for word in blocked_keywords) or any(
-            word in ids for word in blocked_keywords
-        ):
-            tag.decompose()
+            if any(word in classes for word in blocked_keywords) or any(
+                word in ids for word in blocked_keywords
+            ):
+                tag.decompose()
+        except Exception:
+            continue
 
     def process_node(tag):
         from bs4 import NavigableString, Tag
@@ -94,8 +104,8 @@ def clean_html(html: str, base_url: str) -> str:
 
         # Picha
         if name == "img":
-            src = tag.get("src", "").strip()
-            alt = tag.get("alt", "").lower()
+            src = safe_attr(tag, "src").strip()
+            alt = safe_attr(tag, "alt").lower()
 
             if (
                 not src
@@ -112,7 +122,7 @@ def clean_html(html: str, base_url: str) -> str:
 
         # Link
         if name == "a":
-            href = tag.get("href", "").strip()
+            href = safe_attr(tag, "href").strip()
             inner = "".join(process_node(child) for child in tag.children)
 
             if href:
@@ -147,7 +157,6 @@ def clean_html(html: str, base_url: str) -> str:
 
     parts = []
 
-    # Jaribu article/main/content selectors
     main = (
         soup.find("article")
         or soup.find("main")
@@ -179,23 +188,27 @@ def clean_html(html: str, base_url: str) -> str:
         ],
         recursive=True
     ):
-        cleaned = process_node(tag)
+        try:
+            cleaned = process_node(tag)
 
-        if not cleaned.strip():
+            if not cleaned.strip():
+                continue
+
+            # Ruhusu picha
+            if cleaned.startswith("<img"):
+                parts.append(cleaned)
+                continue
+
+            plain = BeautifulSoup(
+                cleaned,
+                "html.parser"
+            ).get_text(separator=" ", strip=True)
+
+            if not is_noise(plain):
+                parts.append(cleaned)
+
+        except Exception:
             continue
-
-        # Ruhusu picha
-        if cleaned.startswith("<img"):
-            parts.append(cleaned)
-            continue
-
-        plain = BeautifulSoup(
-            cleaned,
-            "html.parser"
-        ).get_text(separator=" ", strip=True)
-
-        if not is_noise(plain):
-            parts.append(cleaned)
 
     return "".join(parts)
 
@@ -231,7 +244,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 timeout=60000
             )
 
-            # Subiri content
             await page.wait_for_timeout(3000)
 
             # Title
@@ -241,7 +253,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if h1 else await page.title()
             )
 
-            # Chukua body yote
             body = await page.query_selector("body")
 
             if not body:
@@ -262,7 +273,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not html_content.strip():
             await original_message.reply_text(
-                "⚠️ Imeshindwa kupata content. Website inaweza kuwa inalinda data au content ipo tofauti."
+                "⚠️ Imeshindwa kupata content. Website inaweza kuwa inalinda data au structure yake ni tofauti."
             )
             return
 
@@ -279,12 +290,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await original_message.reply_text(
             f"📄 <b>{title}</b>\n\n"
-            f"🔗 <a href='{telegraph_url}'>Soma hapa (Instant View)</a>",
-            parse_mode="HTML",
-            disable_web_page_preview=False,
-        )
-
-    except Exception as e:
-        await original_message.reply_text(
-            f"❌ Hitilafu: {e}"
-    )
+            f
