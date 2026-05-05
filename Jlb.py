@@ -1,6 +1,8 @@
 from playwright.async_api import async_playwright
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegraph.aio import Telegraph
+from bs4 import BeautifulSoup
 
 NOISE_TEXTS = {
     "table of contents",
@@ -10,60 +12,181 @@ NOISE_TEXTS = {
     "post comment",
 }
 
+telegraph = Telegraph(access_token="YOUR_ACCESS_TOKEN")
+
+# Tags zinazokubalika Telegraph
+ALLOWED_TAGS = {
+    "b", "strong", "i", "em", "u", "s", "a",
+    "p", "br", "h3", "h4", "ul", "ol", "li",
+    "blockquote", "pre", "code"
+}
+
 
 def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
+
+
+def clean_html(html: str) -> str:
+    """Safisha HTML na kubakiza bold, italic, headings, lists n.k."""
+    soup = BeautifulSoup(html, "html.parser")
+
+    def process_node(tag):
+        from bs4 import NavigableString, Tag
+
+        if isinstance(tag, NavigableString):
+            return str(tag)
+
+        if not isinstance(tag, Tag):
+            return ""
+
+        name = tag.name.lower() if tag.name else ""
+
+        # Ondoa tags zisizotakiwa
+        if name in {
+            "script", "style", "nav", "footer",
+            "aside", "form", "button", "input",
+            "img", "figure", "figcaption"
+        }:
+            return ""
+
+        # Link
+        if name == "a":
+            href = tag.get("href", "")
+            inner = "".join(process_node(child) for child in tag.children)
+
+            if href and href.startswith("http") and inner.strip():
+                return f'<a href="{href}">{inner}</a>'
+
+            return inner
+
+        # Process watoto
+        inner = "".join(process_node(child) for child in tag.children)
+
+        if not inner.strip():
+            return ""
+
+        # Mapping
+        tag_map = {
+            "strong": "b",
+            "em": "i",
+            "h1": "h3",
+            "h2": "h3",
+            "h5": "h4",
+            "h6": "h4",
+        }
+
+        mapped = tag_map.get(name, name)
+
+        if mapped in ALLOWED_TAGS:
+            return f"<{mapped}>{inner}</{mapped}>"
+
+        return inner
+
+    parts = []
+
+    for tag in soup.find_all(
+        ["p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre"],
+        recursive=True
+    ):
+        cleaned = process_node(tag)
+
+        if cleaned.strip():
+            plain = BeautifulSoup(
+                cleaned,
+                "html.parser"
+            ).get_text().strip().lower()
+
+            if (
+                plain
+                and plain not in NOISE_TEXTS
+                and len(plain) > 10
+            ):
+                parts.append(cleaned)
+
+    return "".join(parts)
 
 
 async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     original_message = update.message
 
     if not context.args:
-        await original_message.reply_text("⚠️ Toa URL. Mfano: /get https://example.com")
+        await original_message.reply_text(
+            "⚠️ Toa URL. Mfano: /get https://example.com"
+        )
         return
 
     url = context.args[0]
 
     if not is_url(url):
-        await original_message.reply_text("⚠️ URL si sahihi. Lazima ianze na http:// au https://")
+        await original_message.reply_text(
+            "⚠️ URL si sahihi. Lazima ianze na http:// au https://"
+        )
         return
 
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
+
             page = await browser.new_page(
                 user_agent="Mozilla/5.0"
             )
 
-            await page.goto(url, wait_until="networkidle", timeout=60000)
+            await page.goto(
+                url,
+                wait_until="networkidle",
+                timeout=60000
+            )
 
             # Title
             h1 = await page.query_selector("h1")
-            title = await h1.inner_text() if h1 else "Hakuna title"
-            title = title.strip()
+            title = (
+                (await h1.inner_text()).strip()
+                if h1 else "Habari"
+            )
 
-            # Paragraphs
-            paragraphs = await page.query_selector_all("p")
-            lines = []
-            for p_el in paragraphs:
-                text = (await p_el.inner_text()).strip()
-                if text and text.lower() not in NOISE_TEXTS:
-                    lines.append(text)
+            # Pata content kuu ya body
+            body = await page.query_selector("body")
+
+            if not body:
+                await browser.close()
+                await original_message.reply_text(
+                    "⚠️ Imeshindwa kupata content."
+                )
+                return
+
+            body_html = await body.inner_html()
 
             await browser.close()
 
-        content = "\n\n".join(lines)
+        # Safisha content
+        html_content = clean_html(body_html)
 
-        if not content:
-            await original_message.reply_text("⚠️ Imeshindwa kupata content.")
+        if not html_content.strip():
+            await original_message.reply_text(
+                "⚠️ Imeshindwa kupata content."
+            )
             return
 
-        full_text = f"<b>{title}</b>\n\n{content}"
+        # Telegraph limit
+        if len(html_content.encode("utf-8")) > 64000:
+            html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
-        if len(full_text) > 4096:
-            full_text = full_text[:4090] + "..."
+        # Tengeneza Instant View page
+        page_data = await telegraph.create_page(
+            title=title,
+            html_content=html_content,
+        )
 
-        await original_message.reply_text(full_text, parse_mode="HTML")
+        telegraph_url = f"https://telegra.ph/{page_data['path']}"
+
+        await original_message.reply_text(
+            f"📄 <b>{title}</b>\n\n"
+            f"🔗 <a href='{telegraph_url}'>Soma hapa (Instant View)</a>",
+            parse_mode="HTML",
+            disable_web_page_preview=False,
+        )
 
     except Exception as e:
-        await original_message.reply_text(f"❌ Hitilafu: {e}")
+        await original_message.reply_text(
+            f"❌ Hitilafu: {e}"
+        )
