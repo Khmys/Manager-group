@@ -152,7 +152,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Tafuta main content container
             content_selectors = [
-                #"article",
+                "article",
                 ".entry-content",
 #                ".post-content",
 #                ".article-content",
@@ -213,4 +213,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-)
+    )
