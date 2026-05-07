@@ -15,7 +15,6 @@ NOISE_TEXTS = {
 
 telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06d08812181c1945dc")
 
-# Tags zinazokubalika Telegraph
 ALLOWED_TAGS = {
     "b", "strong", "i", "em", "u", "s", "a",
     "p", "br", "h3", "h4", "ul", "ol", "li",
@@ -28,8 +27,19 @@ def is_url(text: str) -> bool:
 
 
 def clean_html(html: str, base_url: str) -> str:
-    """Safisha HTML na kubakiza formatting + picha."""
     soup = BeautifulSoup(html, "html.parser")
+
+    # Futa tags zote zisizo salama KABLA ya processing
+    for tag in soup.find_all(True):
+        if tag.name and tag.name.lower() not in ALLOWED_TAGS:
+            if tag.name.lower() in {
+                "script", "style", "nav", "footer", "aside",
+                "form", "button", "input", "xml", "svg", "meta",
+                "link", "head", "noscript", "iframe", "canvas",
+                "select", "textarea", "label", "header", "figure",
+                "picture", "source", "video", "audio", "map", "area",
+            }:
+                tag.decompose()  # Futa tag na watoto wake wote
 
     def process_node(tag):
         from bs4 import NavigableString, Tag
@@ -42,48 +52,29 @@ def clean_html(html: str, base_url: str) -> str:
 
         name = tag.name.lower() if tag.name else ""
 
-        # Ondoa tags zisizohitajika
-        if name in {
-            "script", "style", "nav", "footer",
-            "aside", "form", "button", "input"
-        }:
-            return ""
-
-        # Picha
         if name == "img":
             src = tag.get("src", "").strip()
-
             if not src:
                 return ""
-
-            # Rekebisha relative URLs
             src = urljoin(base_url, src)
-
             if src.startswith("http"):
                 return f'<img src="{src}"/>'
-
             return ""
 
-        # Links
         if name == "a":
             href = tag.get("href", "").strip()
             inner = "".join(process_node(child) for child in tag.children)
-
             if href:
                 href = urljoin(base_url, href)
-
             if href.startswith("http") and inner.strip():
                 return f'<a href="{href}">{inner}</a>'
-
             return inner
 
-        # Process watoto
         inner = "".join(process_node(child) for child in tag.children)
 
         if not inner.strip():
             return ""
 
-        # Mapping
         tag_map = {
             "strong": "b",
             "em": "i",
@@ -95,39 +86,27 @@ def clean_html(html: str, base_url: str) -> str:
 
         mapped = tag_map.get(name, name)
 
-        if mapped in ALLOWED_TAGS:
-            return f"<{mapped}>{inner}</{mapped}>"
+        if not mapped or mapped not in ALLOWED_TAGS:
+            return inner
 
-        return inner
+        return f"<{mapped}>{inner}</{mapped}>"
 
     parts = []
 
     for tag in soup.find_all(
-        [
-            "p", "h2", "h3", "h4",
-            "ul", "ol", "blockquote",
-            "pre", "img"
-        ],
+        ["p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre", "img"],
         recursive=True
     ):
         cleaned = process_node(tag)
 
         if cleaned.strip():
-            # Kama ni picha, iingize moja kwa moja
             if cleaned.startswith("<img"):
                 parts.append(cleaned)
                 continue
 
-            plain = BeautifulSoup(
-                cleaned,
-                "html.parser"
-            ).get_text().strip().lower()
+            plain = BeautifulSoup(cleaned, "html.parser").get_text().strip().lower()
 
-            if (
-                plain
-                and plain not in NOISE_TEXTS
-                and len(plain) > 10
-            ):
+            if plain and plain not in NOISE_TEXTS and len(plain) > 10:
                 parts.append(cleaned)
 
     return "".join(parts)
@@ -138,7 +117,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         await original_message.reply_text(
-            "⚠️ Toa URL. Mfano: /get https://example.com"
+            "⚠️ Toa URL 🔗. Mfano: /get https://example.com"
         )
         return
 
@@ -171,25 +150,42 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if h1 else "Habari"
             )
 
-            # Body content
-            body = await page.query_selector("body")
+            # Tafuta main content container
+            content_selectors = [
+                #"article",
+                ".entry-content",
+#                ".post-content",
+#                ".article-content",
+#                "main article",
+#                ".single-content",
+#                "#content article",
+#                ".content-area article",
+#                ".site-content article",
+            ]
 
-            if not body:
+            content_el = None
+            for selector in content_selectors:
+                el = await page.query_selector(selector)
+                if el:
+                    content_el = el
+                    break
+
+            if not content_el:
+                content_el = await page.query_selector("body")
+
+            if not content_el:
                 await browser.close()
                 await original_message.reply_text(
                     "⚠️ Imeshindwa kupata content."
                 )
                 return
 
-            body_html = await body.inner_html()
+            body_html = await content_el.inner_html()
 
             await browser.close()
 
         # Safisha content
-        html_content = clean_html(
-            body_html,
-            base_url=url
-        )
+        html_content = clean_html(body_html, base_url=url)
 
         if not html_content.strip():
             await original_message.reply_text(
@@ -197,11 +193,9 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Telegraph size limit
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
-        # Create Telegraph page
         page_data = await telegraph.create_page(
             title=title,
             html_content=html_content,
@@ -219,4 +213,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-        )
+)
