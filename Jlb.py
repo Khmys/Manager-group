@@ -15,29 +15,21 @@ NOISE_TEXTS = {
 
 telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06d08812181c1945dc")
 
-ALLOWED_TAGS = {
-    "b", "strong", "i", "em", "u", "s", "a",
-    "p", "br", "h3", "h4", "ul", "ol", "li",
-    "blockquote", "pre", "code", "img"
-}
-
+# Moja tu - iliyosahihishwa na img
 ALLOWED_TAGS = {
     "p", "a", "b", "strong", "i", "em", "u",
     "s", "blockquote", "code", "pre",
-    "ul", "ol", "li", "br"
+    "ul", "ol", "li", "br", "img"
 }
-
 
 
 def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
 
 
-
 def clean_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
-    # Futa tags zote zisizo salama KABLA ya processing
     for tag in soup.find_all(True):
         if tag.name and tag.name.lower() not in ALLOWED_TAGS:
             if tag.name.lower() in {
@@ -101,28 +93,30 @@ def clean_html(html: str, base_url: str) -> str:
 
     parts = []
 
-    # Chukua tu top-level tags - zisizo ndani ya tag nyingine inayofanana
-    TOP_LEVEL_TAGS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre", "img"}
+    TOP_LEVEL_TAGS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre"}
 
-    for tag in soup.find_all(TOP_LEVEL_TAGS, recursive=True):
-        # Ruka tag ikiwa iko ndani ya tag nyingine ya top-level (parent check)
+    for tag in soup.find_all(list(TOP_LEVEL_TAGS) + ["img"], recursive=True):
+        # Img - shughulikia moja kwa moja
+        if tag.name == "img":
+            src = tag.get("src", "").strip()
+            if src:
+                src = urljoin(base_url, src)
+                if src.startswith("http"):
+                    parts.append(f'<img src="{src}"/>')
+            continue
+
+        # Ruka tag ikiwa iko ndani ya top-level tag nyingine
         if any(parent.name in TOP_LEVEL_TAGS for parent in tag.parents):
             continue
 
         cleaned = process_node(tag)
 
         if cleaned.strip():
-            if cleaned.startswith("<img"):
-                parts.append(cleaned)
-                continue
-
             plain = BeautifulSoup(cleaned, "html.parser").get_text().strip().lower()
-
             if plain and plain not in NOISE_TEXTS and len(plain) > 10:
                 parts.append(cleaned)
 
     return "".join(parts)
-
 
 
 async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,14 +150,12 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 timeout=60000
             )
 
-            # Title
             h1 = await page.query_selector("h1")
             title = (
                 (await h1.inner_text()).strip()
                 if h1 else "Habari"
             )
 
-            # Gundua aina ya website
             is_wordpress = await page.query_selector(
                 "meta[name='generator'][content*='WordPress'], "
                 "meta[name='generator'][content*='Elementor'], "
@@ -178,7 +170,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_medium = "medium.com" in url
             is_substack = "substack.com" in url
 
-            # Chagua selectors kulingana na aina ya website
             if is_wordpress:
                 content_selectors = [
                     ".entry-content",
@@ -214,7 +205,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "article",
                 ]
             else:
-                # Generic fallback kwa websites zingine
                 content_selectors = [
                     "article",
                     ".entry-content",
@@ -228,7 +218,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "main",
                 ]
 
-            # Tafuta content element
             content_el = None
             for selector in content_selectors:
                 el = await page.query_selector(selector)
@@ -236,7 +225,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     content_el = el
                     break
 
-            # Fallback kwa body kama hakuna selector inayofanya kazi
             if not content_el:
                 content_el = await page.query_selector("body")
 
@@ -248,10 +236,8 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             body_html = await content_el.inner_html()
-
             await browser.close()
 
-        # Safisha content
         html_content = clean_html(body_html, base_url=url)
 
         if not html_content.strip():
@@ -260,11 +246,9 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Telegraph size limit
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
-        # Create Telegraph page
         page_data = await telegraph.create_page(
             title=title,
             html_content=html_content,
@@ -282,8 +266,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-        )
- 
- 
- 
- 
+    )
