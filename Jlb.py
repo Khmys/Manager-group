@@ -21,9 +21,17 @@ ALLOWED_TAGS = {
     "blockquote", "pre", "code", "img"
 }
 
+ALLOWED_TAGS = {
+    "p", "a", "b", "strong", "i", "em", "u",
+    "s", "blockquote", "code", "pre",
+    "ul", "ol", "li", "br"
+}
+
+
 
 def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
+
 
 
 def clean_html(html: str, base_url: str) -> str:
@@ -39,7 +47,7 @@ def clean_html(html: str, base_url: str) -> str:
                 "select", "textarea", "label", "header", "figure",
                 "picture", "source", "video", "audio", "map", "area",
             }:
-                tag.decompose()  # Futa tag na watoto wake wote
+                tag.decompose()
 
     def process_node(tag):
         from bs4 import NavigableString, Tag
@@ -93,10 +101,14 @@ def clean_html(html: str, base_url: str) -> str:
 
     parts = []
 
-    for tag in soup.find_all(
-        ["p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre", "img"],
-        recursive=True
-    ):
+    # Chukua tu top-level tags - zisizo ndani ya tag nyingine inayofanana
+    TOP_LEVEL_TAGS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre", "img"}
+
+    for tag in soup.find_all(TOP_LEVEL_TAGS, recursive=True):
+        # Ruka tag ikiwa iko ndani ya tag nyingine ya top-level (parent check)
+        if any(parent.name in TOP_LEVEL_TAGS for parent in tag.parents):
+            continue
+
         cleaned = process_node(tag)
 
         if cleaned.strip():
@@ -110,6 +122,7 @@ def clean_html(html: str, base_url: str) -> str:
                 parts.append(cleaned)
 
     return "".join(parts)
+
 
 
 async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
