@@ -194,14 +194,21 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             page = await browser.new_page(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             )
-
-            await page.goto(
-                url,
-                wait_until="domcontentloaded",
-                timeout=60000
-            )
             
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception:
+                try:
+                    await page.goto(url, wait_until="commit", timeout=15000)
+                except Exception:
+                    await browser.close()
+                    await original_message.reply_text(
+                        "⚠️ Imeshindwa kufungua ukurasa. Jaribu tena baadaye."
+                    )
+                    return
+
             await page.wait_for_timeout(2000)
+            
 
             h1 = await page.query_selector("h1")
             title = (
@@ -327,4 +334,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-        )
+)
