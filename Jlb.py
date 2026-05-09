@@ -77,9 +77,10 @@ def clean_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     
     # 1. Futa sections zote zisizohitajika kwanza (share, related, nav, n.k.)
-    for selector in UNWANTED_SELECTORS:
-        for tag in soup.select(selector):
-            tag.decompose()
+    
+    #for selector in UNWANTED_SELECTORS:
+#        for tag in soup.select(selector):
+#            tag.decompose()
 
     for tag in soup.find_all(True):
         if tag.name and tag.name.lower() not in ALLOWED_TAGS:
@@ -334,4 +335,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-)
+        )
