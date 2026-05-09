@@ -14,19 +14,19 @@ NOISE_TEXTS = {
     "no comments yet. be the first!",
     "write a comment",
     "post comment",
-    "turn on/off menu",
-    "mshirikishe mwenzako",
-    "copy",
-    "related",
-    "radio muhimu",
-    "previous",
-    "next",
-    "share on telegram",
-    "share on whatsapp",
-    "share on facebook",
-    "share on x",
-    "print",
-    "email a link to a friend",
+#    "turn on/off menu",
+#    "mshirikishe mwenzako",
+#    "copy",
+#    "related",
+#    "radio muhimu",
+#    "previous",
+#    "next",
+#    "share on telegram",
+#    "share on whatsapp",
+#    "share on facebook",
+#    "share on x",
+#    "print",
+#    "email a link to a friend",
 }
 
 
@@ -78,9 +78,9 @@ def clean_html(html: str, base_url: str) -> str:
     
     # 1. Futa sections zote zisizohitajika kwanza (share, related, nav, n.k.)
     
-    #for selector in UNWANTED_SELECTORS:
-#        for tag in soup.select(selector):
-#            tag.decompose()
+    for selector in UNWANTED_SELECTORS:
+        for tag in soup.select(selector):
+            tag.decompose()
 
     for tag in soup.find_all(True):
         if tag.name and tag.name.lower() not in ALLOWED_TAGS:
