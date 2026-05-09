@@ -197,9 +197,11 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await page.goto(
                 url,
-                wait_until="networkidle",
+                wait_until="domcontentloaded",
                 timeout=60000
             )
+            
+            await page.wait_for_timeout(2000)
 
             h1 = await page.query_selector("h1")
             title = (
