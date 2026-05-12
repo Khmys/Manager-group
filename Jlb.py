@@ -6,6 +6,8 @@ from telegraph.aio import Telegraph
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup as BS
+
 telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06d08812181c1945dc")
 
 
@@ -15,39 +17,86 @@ NOISE_TEXTS = {
     "no comments yet. be the first!",
     "write a comment",
     "post comment",
+#    "turn on/off menu",
+#    "mshirikishe mwenzako",
+#    "copy",
+#    "related",
+#    "radio muhimu",
+#    "previous",
+#    "next",
+#    "share on telegram",
+#    "share on whatsapp",
+#    "share on facebook",
+#    "share on x",
+#    "print",
+#    "email a link to a friend",
 }
 
+
+
+# Moja tu - iliyosahihishwa na img
 ALLOWED_TAGS = {
-    "p", "a", "b", "i", "u", "s",
-    "h3", "h4", "br", "ul", "ol", "li",
-    "blockquote", "pre", "code", "img"
+    "p", "a", "b", "strong", "i", "em", "u",
+    "s", "blockquote", "code", "pre",
+    "ul", "ol", "li", "br", "img"
 }
 
+
+# CSS selectors za sections zisizohitajika - zitafutwa kabisa
 UNWANTED_SELECTORS = [
+    # Share buttons
     ".sharedaddy",
     ".jp-relatedposts",
     ".sd-sharing",
     "[class*='share']",
+    
+#    # Related posts
+#    "[class*='related']",
+#    ".related-posts",
+#    
+#    # Navigation prev/next
+#    ".post-navigation",
+#    ".nav-links",
+#    ".navigation",
+#    "[class*='navigation']",
+#    
+#    # Sidebar / widgets
+#    ".widget",
+#    ".sidebar",
+#    
+#    # Elementor extras
+#    ".elementor-share-btn",
+#    "[class*='social']",
+#    
+#    # Copy button area (firqatunnajia specific)
+#    ".wp-block-buttons",
+#    ".wp-block-button",
+#    
+#    # Comments
+#    "#comments",
+#    ".comments-area",
 ]
-
 
 
 def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
 
 
+
+#==========
+#Clean Html
+#==========
 def clean_html(html: str, base_url: str) -> str:
     html = re.sub(r'<\?xml[^>]*\?>', '', html)
     html = re.sub(r'<xml[^>]*>.*?</xml>', '', html, flags=re.DOTALL)
 
     soup = BeautifulSoup(html, "lxml")
 
-    # Futa sections zisizohitajika
+    # Futa zisizohitajika
     for selector in UNWANTED_SELECTORS:
         for tag in soup.select(selector):
             tag.decompose()
 
-    # Futa tags hatari
     for tag in soup.find_all(True):
         if tag.name.lower() in {
             "script", "style", "nav", "footer", "aside",
@@ -57,7 +106,7 @@ def clean_html(html: str, base_url: str) -> str:
         }:
             tag.decompose()
 
-    # Rekebisha URLs
+    # Rekebisha URLs za img na a
     for img in soup.find_all("img"):
         src = img.get("src", "")
         if src:
@@ -68,19 +117,14 @@ def clean_html(html: str, base_url: str) -> str:
         if href:
             a["href"] = urljoin(base_url, href)
 
-    # Badilisha tags kwanza
-    tag_map = {"strong": "b", "em": "i", "h1": "h3", "h2": "h3", "h5": "h4", "h6": "h4"}
-    for tag in soup.find_all(list(tag_map.keys())):
+    # Badilisha tags
+    for tag in soup.find_all(["strong", "em", "h1", "h2", "h5", "h6"]):
+        tag_map = {"strong": "b", "em": "i", "h1": "h3", "h2": "h3", "h5": "h4", "h6": "h4"}
         tag.name = tag_map.get(tag.name, tag.name)
 
-    # Futa tags zisizoruhusiwa, hifadhi content
-    for tag in soup.find_all(True):
-        if tag.name not in ALLOWED_TAGS:
-            tag.unwrap()
-    
+    # Chukua content
     body = soup.find("body") or soup
     return body.decode_contents()
-    
 
 
 async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,22 +143,32 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ URL si sahihi. Lazima ianze na http:// au https://"
         )
         return
-
+            
+    
+    
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
+
             page = await browser.new_page(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             )
-
-            await page.goto(url, wait_until="networkidle", timeout=60000)
+            
+            
+            await page.goto(
+                url,
+                wait_until="networkidle",
+                timeout=60000)
+            
+            
 
             # Title
             h1 = await page.query_selector("h1")
-            title = (await h1.inner_text()).strip() if h1 else "Habari"
+            title = (
+                (await h1.inner_text()).strip()
+                if h1 else "Habari"
+            )
 
-            # Gundua platform
-            is_firqatunnajia = "firqatunnajia.com" in url
             is_wordpress = await page.query_selector(
                 "meta[name='generator'][content*='WordPress'], "
                 "meta[name='generator'][content*='Elementor'], "
@@ -123,18 +177,21 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_blogger = await page.query_selector(
                 "meta[name='generator'][content*='Blogger']"
             )
+            
             is_drupal = await page.query_selector(
                 "meta[name='generator'][content*='Drupal'], "
                 "meta[name='Generator'][content*='Drupal']"
             )
+           
             is_medium = "medium.com" in url
             is_substack = "substack.com" in url
+            is_firqatunnajia = "firqatunnajia.com" in url
 
-            # Selectors kulingana na platform
             if is_firqatunnajia:
                 content_selectors = [
                     ".elementor-widget-theme-post-content .elementor-widget-container",
-                ]
+                    ]
+            
             elif is_wordpress:
                 content_selectors = [
                     ".entry-content",
@@ -170,6 +227,8 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ".available-content",
                     "article",
                 ]
+            
+            
             else:
                 content_selectors = [
                     "article",
@@ -184,7 +243,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "main",
                 ]
 
-            # Pata content element
             content_el = None
             for selector in content_selectors:
                 el = await page.query_selector(selector)
@@ -197,18 +255,29 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if not content_el:
                 await browser.close()
-                await original_message.reply_text("⚠️ Imeshindwa kupata content.")
+                await original_message.reply_text(
+                    "⚠️ Imeshindwa kupata content."
+                )
                 return
 
+            
             body_html = await content_el.inner_html()
             await browser.close()
+            
+            print(f"Platform - WP:{bool(is_wordpress)} Drupal:{bool(is_drupal)}")
+            print(f"HTML length: {len(body_html)}")
 
         html_content = clean_html(body_html, base_url=url)
+        
+        print(f"Cleaned length: {len(html_content)}")
+        print(f"Cleaned preview: {html_content[:500]}")
 
         if not html_content.strip():
-            await original_message.reply_text("⚠️ Imeshindwa kupata content.")
+            await original_message.reply_text(
+                "⚠️ Imeshindwa kupata content."
+            )
             return
-
+        
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
@@ -227,4 +296,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        await original_message.reply_text(f"❌ Hitilafu: {e}")
+        await original_message.reply_text(
+            f"❌ Hitilafu: {e}"
+        )
