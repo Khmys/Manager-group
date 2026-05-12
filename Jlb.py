@@ -265,6 +265,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             elif is_drupal:
                 content_selectors = [
+                    ".field-name-body .field-item"
                     ".field-items",
                     ".field-item",
                     ".node__content",
