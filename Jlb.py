@@ -6,6 +6,8 @@ from telegraph.aio import Telegraph
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup as BS
+
 telegraph = Telegraph(access_token="522e083178bb4d7511cc1784c3f849b9e71164cdac06d08812181c1945dc")
 
 
@@ -334,6 +336,10 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        # Funga tags zilizo wazi
+        soup_fix = BS(html_content, "html.parser")
+        html_content = soup_fix.decode_contents()
+        
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
 
@@ -354,4 +360,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-                )
+            )
