@@ -77,12 +77,6 @@ def clean_html(html: str, base_url: str) -> str:
     for tag in soup.find_all(True):
         if tag.name not in ALLOWED_TAGS:
             tag.unwrap()
-
-    
-    result = body.decode_contents()
-    result = re.sub(r'&lt;', '<', result)
-    result = re.sub(r'&gt;', '>', result)
-    result = re.sub(r'&amp;', '&', result)
     
     body = soup.find("body") or soup
     return body.decode_contents()
