@@ -233,9 +233,12 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             is_blogger = await page.query_selector(
                 "meta[name='generator'][content*='Blogger']"
             )
+            
             is_drupal = await page.query_selector(
+                "meta[name='generator'][content*='Drupal'], "
                 "meta[name='Generator'][content*='Drupal']"
             )
+           
             is_medium = "medium.com" in url
             is_substack = "substack.com" in url
             is_firqatunnajia = "firqatunnajia.com" in url
@@ -261,7 +264,7 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             elif is_drupal:
                 content_selectors = [
-                    ".field-name-body .field-item"
+                    ".field-name-body .field-item",
                     ".field-items",
                     ".field-item",
                     ".node__content",
@@ -313,10 +316,17 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
+            
             body_html = await content_el.inner_html()
             await browser.close()
+            
+            print(f"Platform - WP:{bool(is_wordpress)} Drupal:{bool(is_drupal)}")
+            print(f"HTML length: {len(body_html)}")
 
         html_content = clean_html(body_html, base_url=url)
+        
+        print(f"Cleaned length: {len(html_content)}")
+        print(f"Cleaned preview: {html_content[:500]}")
 
         if not html_content.strip():
             await original_message.reply_text(
@@ -344,4 +354,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-        )
+                )
