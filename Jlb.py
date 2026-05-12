@@ -82,6 +82,11 @@ def is_url(text: str) -> bool:
 def clean_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     
+    html = re.sub(r'<\?xml[^>]*\?>', '', html)
+    html = re.sub(r'<xml[^>]*>.*?</xml>', '', html, flags=re.DOTALL)
+    
+    soup = BeautifulSoup(html, "html.parser")
+    
     # 1. Futa sections zote zisizohitajika kwanza (share, related, nav, n.k.)
     
     for selector in UNWANTED_SELECTORS:
@@ -341,4 +346,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-            )
+        )
