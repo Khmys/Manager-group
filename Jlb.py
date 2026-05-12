@@ -82,76 +82,73 @@ def is_url(text: str) -> bool:
     return text.startswith("http://") or text.startswith("https://")
 
 
+
+#==========
+#Clean Html
+#==========
 def clean_html(html: str, base_url: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
-    
+    import re
+    from bs4 import BeautifulSoup, NavigableString, Tag
+
+    # Futa XML tags kwanza
     html = re.sub(r'<\?xml[^>]*\?>', '', html)
     html = re.sub(r'<xml[^>]*>.*?</xml>', '', html, flags=re.DOTALL)
-    
-    soup = BeautifulSoup(html, "html.parser")
-    
-    # 1. Futa sections zote zisizohitajika kwanza (share, related, nav, n.k.)
-    
+
+    soup = BeautifulSoup(html, "lxml")
+
+    # 1. Futa sections zisizohitajika
     for selector in UNWANTED_SELECTORS:
         for tag in soup.select(selector):
             tag.decompose()
 
+    # 2. Futa tags hatari
     for tag in soup.find_all(True):
-        if tag.name and tag.name.lower() not in ALLOWED_TAGS:
-            if tag.name.lower() in {
-                "script", "style", "nav", "footer", "aside",
-                "form", "button", "input", "xml", "svg", "meta",
-                "link", "head", "noscript", "iframe", "canvas",
-                "select", "textarea", "label", "header", "figure",
-                "picture", "source", "video", "audio", "map", "area",
-            }:
-                tag.decompose()
+        if tag.name and tag.name.lower() in {
+            "script", "style", "nav", "footer", "aside",
+            "form", "button", "input", "xml", "svg", "meta",
+            "link", "head", "noscript", "iframe", "canvas",
+            "select", "textarea", "label", "header", "figure",
+            "picture", "source", "video", "audio", "map", "area",
+        }:
+            tag.decompose()
 
-    def process_node(tag):
-        from bs4 import NavigableString, Tag
+    TAG_MAP = {
+        "strong": "b", "em": "i",
+        "h1": "h3", "h2": "h3",
+        "h5": "h4", "h6": "h4",
+    }
 
-        if isinstance(tag, NavigableString):
-            return str(tag)
+    TOP_LEVEL_TAGS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre"}
 
-        if not isinstance(tag, Tag):
+    def process_node(node):
+        if isinstance(node, NavigableString):
+            return str(node)
+        if not isinstance(node, Tag):
             return ""
 
-        name = tag.name.lower() if tag.name else ""
+        name = node.name.lower() if node.name else ""
 
         if name == "img":
-            src = tag.get("src", "").strip()
+            src = node.get("src", "").strip()
             if not src:
                 return ""
             src = urljoin(base_url, src)
-            if src.startswith("http"):
-                return f'<img src="{src}"/>'
-            return ""
+            return f'<img src="{src}"/>' if src.startswith("http") else ""
 
         if name == "a":
-            href = tag.get("href", "").strip()
-            inner = "".join(process_node(child) for child in tag.children)
+            href = node.get("href", "").strip()
+            inner = "".join(process_node(c) for c in node.children)
             if href:
                 href = urljoin(base_url, href)
             if href.startswith("http") and inner.strip():
                 return f'<a href="{href}">{inner}</a>'
             return inner
 
-        inner = "".join(process_node(child) for child in tag.children)
-
+        inner = "".join(process_node(c) for c in node.children)
         if not inner.strip():
             return ""
 
-        tag_map = {
-            "strong": "b",
-            "em": "i",
-            "h1": "h3",
-            "h2": "h3",
-            "h5": "h4",
-            "h6": "h4",
-        }
-
-        mapped = tag_map.get(name, name)
-
+        mapped = TAG_MAP.get(name, name)
         if not mapped or mapped not in ALLOWED_TAGS:
             return inner
 
@@ -159,10 +156,11 @@ def clean_html(html: str, base_url: str) -> str:
 
     parts = []
 
-    TOP_LEVEL_TAGS = {"p", "h2", "h3", "h4", "ul", "ol", "blockquote", "pre"}
-
     for tag in soup.find_all(list(TOP_LEVEL_TAGS) + ["img"], recursive=True):
-        # Img - shughulikia moja kwa moja
+        # Ruka kama iko ndani ya top-level tag nyingine
+        if any(p.name in TOP_LEVEL_TAGS for p in tag.parents):
+            continue
+
         if tag.name == "img":
             src = tag.get("src", "").strip()
             if src:
@@ -171,18 +169,19 @@ def clean_html(html: str, base_url: str) -> str:
                     parts.append(f'<img src="{src}"/>')
             continue
 
-        # Ruka tag ikiwa iko ndani ya top-level tag nyingine
-        if any(parent.name in TOP_LEVEL_TAGS for parent in tag.parents):
+        cleaned = process_node(tag)
+        if not cleaned.strip():
             continue
 
-        cleaned = process_node(tag)
+        plain = BeautifulSoup(cleaned, "lxml").get_text().strip().lower()
+        if plain and plain not in NOISE_TEXTS and len(plain) > 10:
+            parts.append(cleaned)
 
-        if cleaned.strip():
-            plain = BeautifulSoup(cleaned, "html.parser").get_text().strip().lower()
-            if plain and plain not in NOISE_TEXTS and len(plain) > 10:
-                parts.append(cleaned)
-
-    return "".join(parts)
+    # Unganisha na safisha kwa lxml
+    final = "".join(parts)
+    soup_fix = BeautifulSoup(final, "lxml")
+    body = soup_fix.find("body")
+    return body.decode_contents() if body else final
 
 
 async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -335,10 +334,6 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⚠️ Imeshindwa kupata content."
             )
             return
-
-        # Funga tags zilizo wazi
-        soup_fix = BS(html_content, "html.parser")
-        html_content = soup_fix.decode_contents()
         
         if len(html_content.encode("utf-8")) > 64000:
             html_content = html_content[:60000] + "<p>... (imekatwa)</p>"
@@ -360,4 +355,4 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await original_message.reply_text(
             f"❌ Hitilafu: {e}"
-            )
+        )
