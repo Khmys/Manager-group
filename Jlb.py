@@ -199,7 +199,9 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ URL si sahihi. Lazima ianze na http:// au https://"
         )
         return
-
+            
+    
+    
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -208,21 +210,15 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             )
             
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            except Exception:
-                try:
-                    await page.goto(url, wait_until="commit", timeout=15000)
-                except Exception:
-                    await browser.close()
-                    await original_message.reply_text(
-                        "⚠️ Imeshindwa kufungua ukurasa. Jaribu tena baadaye."
-                    )
-                    return
-
-            await page.wait_for_timeout(2000)
+            
+            await page.goto(
+                url,
+                wait_until="networkidle",
+                timeout=60000
+            
             
 
+            # Title
             h1 = await page.query_selector("h1")
             title = (
                 (await h1.inner_text()).strip()
