@@ -79,7 +79,17 @@ def clean_html(html: str, base_url: str) -> str:
             tag.unwrap()
     
     body = soup.find("body") or soup
-    return body.decode_contents()
+    parts = []
+    TOP_LEVEL = {"p", "h3", "h4", "ul", "ol", "blockquote", "pre", "img"}
+    for tag in body.find_all(TOP_LEVEL, recursive=False):
+        parts.append(str(tag))
+    
+    return "".join(parts)
+    
+    
+    
+#    body = soup.find("body") or soup
+#    return body.decode_contents()
     
 
 
