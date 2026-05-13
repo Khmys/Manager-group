@@ -10,7 +10,7 @@ from starlette.routing import Route
 import uvicorn
 from Jlb import get_command
 
-from rss.rss_command import rss_command
+from rss import rss_command
 from rss.rss_scheduler import setup_scheduler
 
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
