@@ -11,8 +11,8 @@ import uvicorn
 from Jlb import get_command
 
 # Ongeza hizi imports juu
-from rss.rss_command import rss_command
-from rss.rss_scheduler import setup_scheduler
+from tg_bot.rss.rss_command import rss_command
+from tg_bot.rss.rss_scheduler import setup_scheduler
 
 # Ongeza hizi ndani ya main() — baada ya handlers zako za zamani
 app.add_handler(CommandHandler("rss", rss_command))
