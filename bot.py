@@ -1,3 +1,53 @@
+age.reply_html(
+                    f"Kwaheri 🙌 {left_mem.mention_html()} 👑"
+                )
+                return
+
+            await update.message.delete()
+    except Exception as e:
+        await context.bot.send_message(chat_id=ERROR_GROUP_ID, text=f"Hitilafu: {e}")
+
+
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    await app.update_queue.put(Update.de_json(data, app.bot))
+    return Response()
+
+
+async def main():
+    global app
+
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    # Sajili handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("get", get_command))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+    app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, delete_left_message))
+
+    starlette_app = Starlette(
+        routes=[Route("/telegram", telegram_webhook, methods=["POST"])]
+    )
+
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app=starlette_app,
+            host="0.0.0.0",
+            port=PORT,
+            log_level="info"
+        )
+    )
+
+    await app.bot.set_webhook(f"{URL}/telegram")
+
+    async with app:
+        await app.start()
+        await server.serve()
+        await app.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 import os
 import asyncio
 import logging
@@ -9,6 +59,9 @@ from starlette.responses import Response
 from starlette.routing import Route
 import uvicorn
 from Jlb import get_command
+
+from tg_bot.rss.rss_command import rss_command
+from tg_bot.rss.rss_scheduler import setup_scheduler
 
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
@@ -88,6 +141,14 @@ async def main():
     # Sajili handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("get", get_command))
+    
+        # ── Handlers ───────
+    app.add_handler(CommandHandler("rss", rss_command))
+
+    # ── Washa RSS Scheduler ──
+    setup_scheduler(app, interval_minutes=60)  # Kagua kila saa 1
+    
+    
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, delete_left_message))
 
