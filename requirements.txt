@@ -8,3 +8,6 @@ playwright
 telegraph
 aiohttp
 lxml
+
+#rss
+python-telegram-bot[job-queue]
