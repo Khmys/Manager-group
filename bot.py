@@ -99,7 +99,7 @@ async def main():
     app.add_handler(CommandHandler("rss", rss_command))
 
     # ── Washa RSS Scheduler ──
-    setup_scheduler(app, interval_minutes=60)  # Kagua kila saa 1
+    setup_scheduler(app, interval_minutes=10)  # Kagua kila saa 1
     
     
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
