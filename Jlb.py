@@ -28,6 +28,8 @@ UNWANTED_SELECTORS = [
     ".jp-relatedposts",
     ".sd-sharing",
     "[class*='share']",
+    ".wp-block-buttons",
+   ".wp-block-button",
 ]
 
 
