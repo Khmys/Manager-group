@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from telegram import Bot
 from telegram.ext import Application
-from rss.rss_command import (
+from rss_command import (
     load_db,
     save_db,
     scrape_posts,
