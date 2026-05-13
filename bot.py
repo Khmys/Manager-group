@@ -10,8 +10,8 @@ from starlette.routing import Route
 import uvicorn
 from Jlb import get_command
 
-from tg_bot.rss.rss_command import rss_command
-from tg_bot.rss.rss_scheduler import setup_scheduler
+from rss.rss_command import rss_command
+from rss.rss_scheduler import setup_scheduler
 
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
 ERROR_GROUP_ID = int(os.getenv("ERROR_GROUP_ID", "-1002158955567"))
