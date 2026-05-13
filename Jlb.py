@@ -297,14 +297,10 @@ async def get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             is_medium = "medium.com" in url
             is_substack = "substack.com" in url
-
-            # Selectors kulingana na platform
-            if is_firqatunnajia:
+            
+            if is_wordpress:
                 content_selectors = [
-                    ".elementor-widget-theme-post-content .elementor-widget-container",
-                ]
-            elif is_wordpress:
-                content_selectors = [
+                ".elementor-widget-theme-post-content .elementor-widget-container",
                     ".entry-content",
                     ".post-content",
                     "article .content",
