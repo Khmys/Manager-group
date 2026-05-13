@@ -14,9 +14,6 @@ from Jlb import get_command
 from tg_bot.rss.rss_command import rss_command
 from tg_bot.rss.rss_scheduler import setup_scheduler
 
-# Ongeza hizi ndani ya main() — baada ya handlers zako za zamani
-app.add_handler(CommandHandler("rss", rss_command))
-setup_scheduler(app, interval_minutes=60)
 
 
 OWNER_ID = int(os.getenv("OWNER_ID", "654648997"))
