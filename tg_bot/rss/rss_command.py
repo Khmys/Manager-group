@@ -87,6 +87,8 @@ def _detect_platform(url: str) -> str:
         return "xenforo"
     if "naijaforum" in domain or "kenyatalk" in domain:
         return "xenforo"
+    if "trtafrika.com" in domain:
+        return "trtafrika"
     return "generic"
 
 
@@ -130,6 +132,37 @@ async def scrape_posts(url: str) -> tuple[str, list[dict]]:
         posts = []
         seen_links = set()
         parsed_base = urlparse(url)
+
+        # ── TRT Afrika ───────────────────────────────────────────────
+        if platform == "trtafrika":
+            # Links zote zenye /article/ kwenye href
+            elements = await page.query_selector_all("a[href*='/article/']")
+
+            for el in elements:
+                title = (await el.inner_text()).strip()
+                href = await el.get_attribute("href")
+
+                if not title or not href or len(title) < 10:
+                    continue
+
+                # Fanya absolute URL
+                if href.startswith("/"):
+                    href = f"{parsed_base.scheme}://{parsed_base.netloc}{href}"
+
+                # Futa duplicates — TRT inaonyesha link moja mara nyingi
+                href = href.split("?")[0]
+                if href in seen_links:
+                    continue
+                seen_links.add(href)
+
+                posts.append({
+                    "title": title,
+                    "link": href,
+                    "id": make_post_id(title, href),
+                })
+
+                if len(posts) >= 15:
+                    break
 
         # ── XenForo (JamiiForums, n.k.) ─────────────────────────────
         if platform == "xenforo":
