@@ -80,11 +80,36 @@ def make_post_id(title: str, link: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+def _detect_platform(url: str) -> str:
+    """Tambua platform kutoka URL."""
+    domain = urlparse(url).netloc.lower()
+    if "jamiiforums.com" in domain:
+        return "xenforo"
+    if "naijaforum" in domain or "kenyatalk" in domain:
+        return "xenforo"
+    if "trtafrika.com" in domain:
+        return "trtafrika"
+    return "generic"
+
+
+def _is_valid_thread_link(href: str, base_url: str) -> bool:
+    """Angalia kama link ni thread halisi ya XenForo."""
+    parsed_base = urlparse(base_url)
+    parsed_href = urlparse(href)
+    # Lazima iwe same domain
+    if parsed_href.netloc and parsed_href.netloc != parsed_base.netloc:
+        return False
+    # XenForo threads zina /threads/ kwenye path
+    return "/threads/" in href
+
+
 async def scrape_posts(url: str) -> tuple[str, list[dict]]:
     """
     Scrape posts kutoka website yoyote.
     Rudisha (site_name, [{"title", "link", "id"}])
     """
+    platform = _detect_platform(url)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(
@@ -93,7 +118,7 @@ async def scrape_posts(url: str) -> tuple[str, list[dict]]:
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3000)
         except Exception:
             await page.goto(url, wait_until="load", timeout=45000)
 
@@ -104,39 +129,28 @@ async def scrape_posts(url: str) -> tuple[str, list[dict]]:
             raw = await title_tag.inner_text()
             site_name = raw.split("|")[0].split("-")[0].strip() or site_name
 
-        # Selectors za article links
-        POST_SELECTORS = [
-            "article h2 a", "article h3 a",
-            ".post h2 a", ".post h3 a",
-            ".entry-title a", ".post-title a",
-            "h2.title a", "h3.title a",
-            ".article-title a", ".news-title a",
-            ".posts-list h2 a", ".blog-list h2 a",
-            "main h2 a", "main h3 a",
-            "#main h2 a", "#content h2 a",
-        ]
-
         posts = []
         seen_links = set()
+        parsed_base = urlparse(url)
 
-        for selector in POST_SELECTORS:
-            elements = await page.query_selector_all(selector)
-            if not elements:
-                continue
+        # ── TRT Afrika ───────────────────────────────────────────────
+        if platform == "trtafrika":
+            # Links zote zenye /article/ kwenye href
+            elements = await page.query_selector_all("a[href*='/article/']")
 
             for el in elements:
                 title = (await el.inner_text()).strip()
                 href = await el.get_attribute("href")
 
-                if not title or not href:
+                if not title or not href or len(title) < 10:
                     continue
 
+                # Fanya absolute URL
                 if href.startswith("/"):
-                    parsed = urlparse(url)
-                    href = f"{parsed.scheme}://{parsed.netloc}{href}"
-                elif not href.startswith("http"):
-                    continue
+                    href = f"{parsed_base.scheme}://{parsed_base.netloc}{href}"
 
+                # Futa duplicates — TRT inaonyesha link moja mara nyingi
+                href = href.split("?")[0]
                 if href in seen_links:
                     continue
                 seen_links.add(href)
@@ -147,8 +161,101 @@ async def scrape_posts(url: str) -> tuple[str, list[dict]]:
                     "id": make_post_id(title, href),
                 })
 
-            if posts:
-                break
+                if len(posts) >= 15:
+                    break
+
+        # ── XenForo (JamiiForums, n.k.) ─────────────────────────────
+        if platform == "xenforo":
+            # XenForo inatumia <a> za moja kwa moja zenye href ya /threads/
+            # Zinaweza kuwa kwenye: featured, latest posts, trending
+            XENFORO_SELECTORS = [
+                # Featured content
+                ".block-container a[href*='/threads/']",
+                # Latest posts / whats new
+                ".structItem-title a[href*='/threads/']",
+                ".contentRow-title a[href*='/threads/']",
+                # Trending
+                "a[href*='/threads/']",
+            ]
+
+            for selector in XENFORO_SELECTORS:
+                elements = await page.query_selector_all(selector)
+                if not elements:
+                    continue
+
+                for el in elements:
+                    title = (await el.inner_text()).strip()
+                    href = await el.get_attribute("href")
+
+                    if not title or not href or len(title) < 5:
+                        continue
+
+                    # Fanya absolute URL
+                    if href.startswith("/"):
+                        href = f"{parsed_base.scheme}://{parsed_base.netloc}{href}"
+
+                    # Hakikisha ni thread halisi
+                    if not _is_valid_thread_link(href, url):
+                        continue
+
+                    # Futa query strings (page numbers, n.k.)
+                    href = href.split("?")[0].rstrip("/") + "/"
+
+                    if href in seen_links:
+                        continue
+                    seen_links.add(href)
+
+                    posts.append({
+                        "title": title,
+                        "link": href,
+                        "id": make_post_id(title, href),
+                    })
+
+                if len(posts) >= 10:
+                    break
+
+        # ── Generic (blogu, news sites, n.k.) ───────────────────────
+        else:
+            POST_SELECTORS = [
+                "article h2 a", "article h3 a",
+                ".post h2 a", ".post h3 a",
+                ".entry-title a", ".post-title a",
+                "h2.title a", "h3.title a",
+                ".article-title a", ".news-title a",
+                ".posts-list h2 a", ".blog-list h2 a",
+                "main h2 a", "main h3 a",
+                "#main h2 a", "#content h2 a",
+            ]
+
+            for selector in POST_SELECTORS:
+                elements = await page.query_selector_all(selector)
+                if not elements:
+                    continue
+
+                for el in elements:
+                    title = (await el.inner_text()).strip()
+                    href = await el.get_attribute("href")
+
+                    if not title or not href:
+                        continue
+
+                    if href.startswith("/"):
+                        href = f"{parsed_base.scheme}://{parsed_base.netloc}{href}"
+                    elif not href.startswith("http"):
+                        continue
+
+                    if href in seen_links:
+                        continue
+                    seen_links.add(href)
+
+                    posts.append({
+                        "title": title,
+                        "link": href,
+                        "id": make_post_id(title, href),
+                    })
+
+                if posts:
+                    break
 
         await browser.close()
         return site_name, posts
