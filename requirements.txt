@@ -11,3 +11,4 @@ lxml
 
 #rss
 python-telegram-bot[job-queue]
+motor
